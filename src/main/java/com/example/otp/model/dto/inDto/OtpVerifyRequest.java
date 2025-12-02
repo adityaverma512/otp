@@ -1,4 +1,4 @@
-package com.example.otp.model;
+package com.example.otp.model.dto.inDto;
 
 import lombok.Data;
 

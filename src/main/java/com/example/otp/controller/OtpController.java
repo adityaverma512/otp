@@ -1,11 +1,13 @@
 package com.example.otp.controller;
 
-import com.example.otp.model.OtpRequest;
-import com.example.otp.model.OtpVerifyRequest;
+import com.example.otp.model.dto.inDto.OtpRequest;
+import com.example.otp.model.dto.inDto.OtpVerifyRequest;
+import com.example.otp.model.dto.outDto.ApiResponseOutDto;
 import com.example.otp.service.OtpService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.Map;
 
 @RestController
@@ -19,20 +21,44 @@ public class OtpController {
     }
 
     @PostMapping("/generate")
-    public ResponseEntity<?> generate(@RequestBody OtpRequest request) {
+    public ResponseEntity<ApiResponseOutDto<Map<String, String>>> generate(@RequestBody OtpRequest request) {
         String otp = otpService.generate(request.getIdentifier());
-        return ResponseEntity.ok(Map.of("message", "OTP sent successfully", "otp", otp));
+
+        ApiResponseOutDto<Map<String, String>> response = ApiResponseOutDto.<Map<String, String>>builder()
+                .status("SUCCESS")
+                .message("OTP sent successfully")
+                .data(Map.of("otp", otp))
+                .timestamp(Instant.now())
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/verify")
-    public ResponseEntity<?> verify(@RequestBody OtpVerifyRequest request) {
+    public ResponseEntity<ApiResponseOutDto<String>> verify(@RequestBody OtpVerifyRequest request) {
         otpService.verify(request.getIdentifier(), request.getOtp());
-        return ResponseEntity.ok(Map.of("message", "OTP verified successfully"));
+
+        ApiResponseOutDto<String> response = ApiResponseOutDto.<String>builder()
+                .status("SUCCESS")
+                .message("OTP verified successfully")
+                .data(null)
+                .timestamp(Instant.now())
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/resend")
-    public ResponseEntity<?> resend(@RequestBody OtpRequest request) {
+    public ResponseEntity<ApiResponseOutDto<Map<String, String>>> resend(@RequestBody OtpRequest request) {
         String otp = otpService.resend(request.getIdentifier());
-        return ResponseEntity.ok(Map.of("message", "OTP resent successfully", "otp", otp));
+
+        ApiResponseOutDto<Map<String, String>> response = ApiResponseOutDto.<Map<String, String>>builder()
+                .status("SUCCESS")
+                .message("OTP resent successfully")
+                .data(Map.of("otp", otp))
+                .timestamp(Instant.now())
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 }
