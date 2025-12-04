@@ -5,6 +5,7 @@ import com.example.otp.constants.OtpConstants;
 import com.example.otp.exception.InvalidOtpException;
 import com.example.otp.exception.OtpNotFoundException;
 import com.example.otp.exception.ResendCooldownException;
+import com.example.otp.model.dto.inDto.OtpRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -19,11 +20,15 @@ public class OtpService {
 
     private final RedisTemplate<String, String> redisTemplate;
     private final OtpConfig otpConfig;
+    private final NotificationService notificationService;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public OtpService(RedisTemplate<String, String> redisTemplate, OtpConfig otpConfig) {
+    public OtpService(RedisTemplate<String, String> redisTemplate,
+                      OtpConfig otpConfig,
+                      NotificationService notificationService) {
         this.redisTemplate = redisTemplate;
         this.otpConfig = otpConfig;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -46,9 +51,9 @@ public class OtpService {
     }
 
     /**
-     * Generate OTP for identifier
+     * Generate OTP for identifier and send via notification service
      */
-    public String generate(String identifier) {
+    public String generate(String identifier, OtpRequest request) {
         String otp = generateOtp();
         String otpKey = OtpConstants.REDIS_OTP_KEY_PREFIX + identifier;
 
@@ -76,9 +81,11 @@ public class OtpService {
 
         log.info("📧 OTP generated for identifier: {} (valid for {} seconds)",
                 identifier, otpConfig.getExpirySeconds());
-        System.out.println("📧 OTP generated for " + identifier + " → OTP: " + otp);
 
-        return otp; // Return plain OTP (for sending to Salesforce)
+        // Send OTP notification asynchronously (with circuit breaker protection)
+        notificationService.sendOtpNotification(request, identifier, otp);
+
+        return otp; // Return plain OTP (stored hashed in Redis)
     }
 
     /**
@@ -108,7 +115,6 @@ public class OtpService {
         redisTemplate.delete(resendKey);
 
         log.info("✅ OTP verified and deleted for: {}", identifier);
-        System.out.println("✅ OTP verified successfully for: " + identifier);
 
         return true;
     }
@@ -116,7 +122,7 @@ public class OtpService {
     /**
      * Resend OTP - Always generates NEW OTP after cooldown
      */
-    public String resend(String identifier) {
+    public String resend(String identifier, OtpRequest request) {
         String resendKey = OtpConstants.REDIS_RESEND_KEY_PREFIX + identifier;
         String resendTimestamp = redisTemplate.opsForValue().get(resendKey);
 
@@ -135,10 +141,9 @@ public class OtpService {
         }
 
         // Generate NEW OTP (invalidates old one)
-        String newOtp = generate(identifier);
+        String newOtp = generate(identifier, request);
 
         log.info("🔄 New OTP generated for: {} (old OTP invalidated)", identifier);
-        System.out.println("🔄 New OTP generated for " + identifier + " → OTP: " + newOtp);
 
         return newOtp;
     }

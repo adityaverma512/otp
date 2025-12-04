@@ -170,7 +170,7 @@ public class ValidationService {
         sanitized = sanitized.replaceAll("<[^>]*>", "");
 
         // Remove SQL injection attempts
-        sanitized = sanitized.replaceAll("['\"`;--]", "");
+        sanitized = sanitized.replaceAll("[-'\"`;]", "");
 
         // Remove non-printable characters
         sanitized = sanitized.replaceAll("[\\p{Cntrl}&&[^\r\n\t]]", "");
