@@ -4,6 +4,7 @@ import com.example.otp.model.dto.inDto.OtpRequest;
 import com.example.otp.model.dto.inDto.OtpVerifyRequest;
 import com.example.otp.model.dto.outDto.ApiResponseOutDto;
 import com.example.otp.service.OtpService;
+import com.example.otp.service.ValidationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,19 +16,31 @@ import java.util.Map;
 public class OtpController {
 
     private final OtpService otpService;
+    private final ValidationService validationService;
 
-    public OtpController(OtpService otpService) {
+    public OtpController(OtpService otpService, ValidationService validationService) {
         this.otpService = otpService;
+        this.validationService = validationService;
     }
 
     @PostMapping("/generate")
     public ResponseEntity<ApiResponseOutDto<Map<String, String>>> generate(@RequestBody OtpRequest request) {
-        String otp = otpService.generate(request.getIdentifier());
+        // Validate and sanitize request
+        validationService.validateGenerateRequest(request);
+
+        // Get identifier based on channel
+        String identifier = validationService.getIdentifier(request);
+
+        // Generate OTP
+        String otp = otpService.generate(identifier);
 
         ApiResponseOutDto<Map<String, String>> response = ApiResponseOutDto.<Map<String, String>>builder()
                 .status("SUCCESS")
                 .message("OTP sent successfully")
-                .data(Map.of("otp", otp))
+                .data(Map.of(
+                        "channel", request.getChannel(),
+                        "identifier", identifier
+                ))
                 .timestamp(Instant.now())
                 .build();
 
@@ -36,6 +49,10 @@ public class OtpController {
 
     @PostMapping("/verify")
     public ResponseEntity<ApiResponseOutDto<String>> verify(@RequestBody OtpVerifyRequest request) {
+        // Validate and sanitize request
+        validationService.validateVerifyRequest(request);
+
+        // Verify OTP
         otpService.verify(request.getIdentifier(), request.getOtp());
 
         ApiResponseOutDto<String> response = ApiResponseOutDto.<String>builder()
@@ -49,13 +66,24 @@ public class OtpController {
     }
 
     @PostMapping("/resend")
-    public ResponseEntity<ApiResponseOutDto<Map<String, String>>> resend(@RequestBody OtpRequest request) {
-        String otp = otpService.resend(request.getIdentifier());
+    public ResponseEntity<ApiResponseOutDto<Map<String, Object>>> resend(@RequestBody OtpRequest request) {
+        // Validate and sanitize request
+        validationService.validateGenerateRequest(request);
 
-        ApiResponseOutDto<Map<String, String>> response = ApiResponseOutDto.<Map<String, String>>builder()
+        // Get identifier based on channel
+        String identifier = validationService.getIdentifier(request);
+
+        // Resend (generates new OTP after cooldown)
+        String otp = otpService.resend(identifier);
+
+        ApiResponseOutDto<Map<String, Object>> response = ApiResponseOutDto.<Map<String, Object>>builder()
                 .status("SUCCESS")
-                .message("OTP resent successfully")
-                .data(Map.of("otp", otp))
+                .message("New OTP sent successfully")
+                .data(Map.of(
+                        "channel", request.getChannel(),
+                        "identifier", identifier,
+                        "message", "Previous OTP has been invalidated"
+                ))
                 .timestamp(Instant.now())
                 .build();
 
