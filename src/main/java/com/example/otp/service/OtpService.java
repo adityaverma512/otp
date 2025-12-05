@@ -42,7 +42,7 @@ public class OtpService {
         if (otpConfig.getSecurity().getUseHashing()) {
             return DigestUtils.sha256Hex(otp);
         }
-        return otp; // Fallback if hashing disabled
+        return otp;
     }
 
     /**
@@ -52,10 +52,8 @@ public class OtpService {
         String otp = generateOtp();
         String otpKey = OtpConstants.REDIS_OTP_KEY_PREFIX + identifier;
 
-        // Hash OTP before storing
         String hashedOtp = hashOtp(otp);
 
-        // Store hashed OTP in Redis
         redisTemplate.opsForValue().set(
                 otpKey,
                 hashedOtp,
@@ -63,7 +61,6 @@ public class OtpService {
                 TimeUnit.SECONDS
         );
 
-        // Set resend cooldown timestamp
         String resendKey = OtpConstants.REDIS_RESEND_KEY_PREFIX + identifier;
         long resendAllowedAt = System.currentTimeMillis() +
                 (otpConfig.getResend().getCooldownSeconds() * 1000L);
@@ -74,9 +71,9 @@ public class OtpService {
                 TimeUnit.SECONDS
         );
 
-        log.info("📧 OTP generated for identifier: {} (valid for {} seconds)",
+        log.info(" OTP generated for identifier: {} (valid for {} seconds)",
                 identifier, otpConfig.getExpirySeconds());
-        System.out.println("📧 OTP generated for " + identifier + " → OTP: " + otp);
+        System.out.println(" OTP generated for " + identifier + " → OTP: " + otp);
 
         return otp; // Return plain OTP (for sending to Salesforce)
     }
@@ -92,23 +89,19 @@ public class OtpService {
             throw new OtpNotFoundException("OTP expired or not found for: " + identifier);
         }
 
-        // Hash user's input OTP
         String hashedInputOtp = hashOtp(otp);
 
-        // Compare hashes
         if (!storedHashedOtp.equals(hashedInputOtp)) {
             throw new InvalidOtpException("Invalid OTP for: " + identifier);
         }
 
-        // Delete OTP after successful verification
         redisTemplate.delete(otpKey);
 
-        // Also delete resend cooldown key
         String resendKey = OtpConstants.REDIS_RESEND_KEY_PREFIX + identifier;
         redisTemplate.delete(resendKey);
 
-        log.info("✅ OTP verified and deleted for: {}", identifier);
-        System.out.println("✅ OTP verified successfully for: " + identifier);
+        log.info(" OTP verified and deleted for: {}", identifier);
+        System.out.println(" OTP verified successfully for: " + identifier);
 
         return true;
     }
@@ -120,7 +113,6 @@ public class OtpService {
         String resendKey = OtpConstants.REDIS_RESEND_KEY_PREFIX + identifier;
         String resendTimestamp = redisTemplate.opsForValue().get(resendKey);
 
-        // Check if cooldown period is active
         if (resendTimestamp != null) {
             long resendAllowedAt = Long.parseLong(resendTimestamp);
             long currentTime = System.currentTimeMillis();
@@ -134,11 +126,10 @@ public class OtpService {
             }
         }
 
-        // Generate NEW OTP (invalidates old one)
         String newOtp = generate(identifier);
 
-        log.info("🔄 New OTP generated for: {} (old OTP invalidated)", identifier);
-        System.out.println("🔄 New OTP generated for " + identifier + " → OTP: " + newOtp);
+        log.info(" New OTP generated for: {} (old OTP invalidated)", identifier);
+        System.out.println(" New OTP generated for " + identifier + " → OTP: " + newOtp);
 
         return newOtp;
     }

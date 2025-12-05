@@ -13,6 +13,7 @@ public class ValidationConfig {
     private PhoneValidation phone;
     private OtpValidation otp;
     private NameValidation name;
+    private SanitizationValidation sanitization;
 
     @Data
     public static class EmailValidation {
@@ -37,5 +38,9 @@ public class ValidationConfig {
     public static class NameValidation {
         private String pattern;
         private Integer maxLength;
+    }
+    @Data
+    public static class SanitizationValidation {
+        private String dangerousCharsPattern;
     }
 }

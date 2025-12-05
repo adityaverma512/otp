@@ -24,7 +24,7 @@ public class ValidationService {
      * Validate and sanitize Generate OTP request
      */
     public void validateGenerateRequest(OtpRequest request) {
-        // Validate channel
+
         if (request.getChannel() == null || request.getChannel().trim().isEmpty()) {
             throw new ValidationException(OtpConstants.ERROR_INVALID_CHANNEL);
         }
@@ -35,14 +35,12 @@ public class ValidationService {
         }
         request.setChannel(channel);
 
-        // Validate based on channel
         if (channel.equals(OtpConstants.CHANNEL_SMS)) {
             validateAndSanitizePhone(request);
         } else {
             validateAndSanitizeEmail(request);
         }
 
-        // Validate names
         validateAndSanitizeName(request);
     }
 
@@ -50,7 +48,6 @@ public class ValidationService {
      * Validate and sanitize Verify OTP request
      */
     public void validateVerifyRequest(OtpVerifyRequest request) {
-        // Validate channel
         if (request.getChannel() == null || request.getChannel().trim().isEmpty()) {
             throw new ValidationException(OtpConstants.ERROR_INVALID_CHANNEL);
         }
@@ -61,19 +58,16 @@ public class ValidationService {
         }
         request.setChannel(channel);
 
-        // Validate identifier
         if (request.getIdentifier() == null || request.getIdentifier().trim().isEmpty()) {
             throw new ValidationException(OtpConstants.ERROR_MISSING_IDENTIFIER);
         }
 
-        // Sanitize identifier
         String identifier = sanitizeString(request.getIdentifier());
         if (channel.equals(OtpConstants.CHANNEL_EMAIL)) {
             identifier = identifier.toLowerCase();
         }
         request.setIdentifier(identifier);
 
-        // Validate OTP format
         validateOtpFormat(request.getOtp());
     }
 
@@ -83,7 +77,7 @@ public class ValidationService {
         }
 
         String phone = sanitizeString(request.getApplicationMobileNumber());
-        phone = phone.replaceAll("\\s+", ""); // Remove all spaces
+        phone = phone.replaceAll("\\s+", "");
 
         Pattern pattern = Pattern.compile(validationConfig.getPhone().getPattern());
         if (!pattern.matcher(phone).matches()) {
@@ -119,7 +113,6 @@ public class ValidationService {
     }
 
     private void validateAndSanitizeName(OtpRequest request) {
-        // Validate first name
         if (request.getApplicantFirstName() == null || request.getApplicantFirstName().trim().isEmpty()) {
             throw new ValidationException("First name is required");
         }
@@ -131,7 +124,6 @@ public class ValidationService {
         }
         request.setApplicantFirstName(firstName);
 
-        // Validate last name
         if (request.getApplicantLastName() == null || request.getApplicantLastName().trim().isEmpty()) {
             throw new ValidationException("Last name is required");
         }
@@ -163,16 +155,16 @@ public class ValidationService {
             return null;
         }
 
-        // Trim whitespace
         String sanitized = input.trim();
 
-        // Remove HTML tags
         sanitized = sanitized.replaceAll("<[^>]*>", "");
 
-        // Remove SQL injection attempts
-        sanitized = sanitized.replaceAll("['\"`;--]", "");
 
-        // Remove non-printable characters
+        if (validationConfig.getSanitization() != null &&
+                validationConfig.getSanitization().getDangerousCharsPattern() != null) {
+            sanitized = sanitized.replaceAll(validationConfig.getSanitization().getDangerousCharsPattern(), "");
+        }
+
         sanitized = sanitized.replaceAll("[\\p{Cntrl}&&[^\r\n\t]]", "");
 
         return sanitized;
