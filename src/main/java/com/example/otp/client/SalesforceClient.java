@@ -3,6 +3,7 @@ package com.example.otp.client;
 import com.example.otp.config.SalesforceConfig;
 import com.example.otp.exception.SalesforceServiceException;
 import com.example.otp.model.dto.OtpNotificationDto;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -22,34 +23,49 @@ public class SalesforceClient {
     }
 
     /**
-     * Send OTP notification to Salesforce
-     * Circuit breaker protects against cascading failures
+     * Send OTP notification to Salesforce with Circuit Breaker protection
+     * NO RETRY - Fails immediately when circuit is OPEN
      */
     @CircuitBreaker(name = "salesforceClient", fallbackMethod = "sendOtpFallback")
     public void sendOtp(OtpNotificationDto notification) {
-        log.info("📤 [CircuitBreaker] Attempting to send OTP via Salesforce for: {} (Correlation: {})",
-                notification.getIdentifier(), notification.getCorrelationId());
+        log.info("🔵 [Salesforce] Attempting to send OTP");
+        log.info("   Correlation ID: {}", notification.getCorrelationId());
+        log.info("   Identifier: {}", notification.getIdentifier());
 
         if (salesforceConfig.getSimulation().getEnabled()) {
             simulateSalesforceCall(notification);
         } else {
-            // TODO: Implement actual Salesforce API call
             sendToRealSalesforce(notification);
         }
 
-        log.info("✅ [CircuitBreaker] OTP sent successfully via Salesforce for: {}",
-                notification.getIdentifier());
+        log.info("✅ [Salesforce] OTP sent successfully");
     }
 
     /**
-     * Fallback method when circuit is OPEN or call fails
+     * Fallback method - Called when circuit is OPEN or call fails
+     * NO RETRY - Just log and throw exception
      */
     private void sendOtpFallback(OtpNotificationDto notification, Exception ex) {
-        log.error("🔴 [CircuitBreaker FALLBACK] Salesforce unavailable. Correlation: {}. Error: {}",
-                notification.getCorrelationId(), ex.getMessage());
+        // Check if circuit breaker is open
+        if (ex instanceof CallNotPermittedException) {
+            log.error("🔴 ========================================");
+            log.error("🔴 CIRCUIT BREAKER IS OPEN");
+            log.error("🔴 SALESFORCE IS DOWN - NOT ATTEMPTING");
+            log.error("🔴 Correlation ID: {}", notification.getCorrelationId());
+            log.error("🔴 ========================================");
+
+            throw new SalesforceServiceException(
+                    "Salesforce service is temporarily unavailable. Circuit breaker is OPEN. Please try again later."
+            );
+        }
+
+        // Other failures
+        log.error("❌ [Salesforce] Failed to send OTP");
+        log.error("   Correlation ID: {}", notification.getCorrelationId());
+        log.error("   Error: {}", ex.getMessage());
 
         throw new SalesforceServiceException(
-                "OTP service is temporarily unavailable. Please try again in a few moments.",
+                "Failed to send OTP notification. Please try again.",
                 ex
         );
     }
@@ -61,23 +77,23 @@ public class SalesforceClient {
         try {
             // Simulate network delay
             int delay = salesforceConfig.getSimulation().getDelayMs();
-            log.debug("⏳ Simulating Salesforce delay: {}ms", delay);
+            log.debug("⏳ [Simulation] Network delay: {}ms", delay);
             Thread.sleep(delay);
 
             // Simulate random failures based on failure rate
             double failureRate = salesforceConfig.getSimulation().getFailureRate();
             if (random.nextDouble() < failureRate) {
-                log.warn("⚠️ [SIMULATION] Forcing failure (failure rate: {})", failureRate);
+                log.warn("⚠️ [Simulation] Forcing failure (rate: {}%)", failureRate * 100);
                 throw new RuntimeException("Simulated Salesforce failure");
             }
 
             // Simulate timeout scenario
             if (delay > salesforceConfig.getSimulation().getTimeoutMs()) {
-                log.warn("⚠️ [SIMULATION] Simulating timeout");
+                log.warn("⚠️ [Simulation] Timeout detected");
                 throw new TimeoutException("Simulated timeout");
             }
 
-            log.info("✅ [SIMULATION] OTP sent successfully via Salesforce simulator");
+            log.info("✅ [Simulation] OTP sent successfully");
             log.info("   Channel: {} | Identifier: {} | Name: {} {}",
                     notification.getChannel(),
                     notification.getIdentifier(),
@@ -96,15 +112,6 @@ public class SalesforceClient {
      * Real Salesforce integration (to be implemented)
      */
     private void sendToRealSalesforce(OtpNotificationDto notification) {
-        // TODO: Implement actual HTTP call to Salesforce
-        // Example using RestTemplate or WebClient:
-        //
-        // ResponseEntity<String> response = restTemplate.postForEntity(
-        //     salesforceConfig.getApi().getEndpoint(),
-        //     notification,
-        //     String.class
-        // );
-
         throw new UnsupportedOperationException("Real Salesforce integration not yet implemented");
     }
 }

@@ -1,11 +1,9 @@
 package com.example.otp.client;
 
 import com.example.otp.model.dto.OtpNotificationDto;
-import com.example.otp.service.NotificationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
@@ -21,14 +19,11 @@ public class AzureServiceBusClient {
 
     private final ObjectMapper objectMapper;
     private final SalesforceClient salesforceClient;
-    private NotificationService notificationService;
 
     public AzureServiceBusClient(ObjectMapper objectMapper,
-                                 SalesforceClient salesforceClient,
-                                 @Lazy NotificationService notificationService) {
+                                 SalesforceClient salesforceClient) {
         this.objectMapper = objectMapper;
         this.salesforceClient = salesforceClient;
-        this.notificationService = notificationService;
     }
 
     /**
@@ -45,6 +40,7 @@ public class AzureServiceBusClient {
 
     /**
      * Simulated message publishing - Simple version
+     * NO RETRY, NO DLQ - Single attempt only
      */
     private void publishToSimulatedQueue(OtpNotificationDto notification) {
         try {
@@ -58,15 +54,14 @@ public class AzureServiceBusClient {
 
         } catch (Exception e) {
             log.error("❌ [Azure Service Bus] Failed to publish message", e);
-            notificationService.updateNotificationStatus(
-                    notification.getCorrelationId(),
-                    "FAILED"
-            );
+            log.error("   Correlation ID: {}", notification.getCorrelationId());
+            log.error("   Message will NOT be retried - User must request new OTP");
         }
     }
 
     /**
-     * Process message - Try once, if fails mark as FAILED
+     * Process message - Try once, if fails just log error
+     * Circuit breaker will handle Salesforce failures
      */
     private void processMessage(OtpNotificationDto notification) {
         String correlationId = notification.getCorrelationId();
@@ -75,24 +70,16 @@ public class AzureServiceBusClient {
             log.info("🔄 [Message Consumer] Processing message");
             log.info("   Correlation ID: {}", correlationId);
 
-            // Update status to PROCESSING
-            notificationService.updateNotificationStatus(correlationId, "PROCESSING");
-
             // Call Salesforce (with circuit breaker protection)
             salesforceClient.sendOtp(notification);
 
-            // SUCCESS
-            notificationService.updateNotificationStatus(correlationId, "SENT");
             log.info("✅ [Message Consumer] OTP sent successfully");
 
         } catch (Exception e) {
-            // FAILED - No retry, just mark as failed
-            log.error("❌ [Message Consumer] Failed to send OTP: {}", e.getMessage());
+            log.error("❌ [Message Consumer] Failed to send OTP");
             log.error("   Correlation ID: {}", correlationId);
-            log.error("   User should request a new OTP");
-
-            // Update status to FAILED
-            notificationService.updateNotificationStatus(correlationId, "FAILED");
+            log.error("   Error: {}", e.getMessage());
+            log.error("   User must request a new OTP");
         }
     }
 
