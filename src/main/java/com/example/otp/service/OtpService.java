@@ -56,7 +56,7 @@ public class OtpService {
     public String generate(String identifier, OtpRequest request) {
         String otp = generateOtp();
         String otpKey = OtpConstants.REDIS_OTP_KEY_PREFIX + identifier;
-
+        log.info("OTP: {}", otp);
         // Hash OTP before storing
         String hashedOtp = hashOtp(otp);
 
