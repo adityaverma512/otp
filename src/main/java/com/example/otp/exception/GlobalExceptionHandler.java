@@ -48,6 +48,18 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(response);
   }
 
+  @ExceptionHandler(SalesforceServiceException.class)
+  public ResponseEntity<ApiResponseOutDto<String>> handleSalesforceService(SalesforceServiceException ex) {
+    ApiResponseOutDto<String> response = ApiResponseOutDto.<String>builder()
+            .status("ERROR")
+            .message(ex.getMessage())
+            .data(null)
+            .timestamp(Instant.now())
+            .build();
+
+    return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+  }
+
   @ExceptionHandler(ValidationException.class)
   public ResponseEntity<ApiResponseOutDto<String>> handleValidation(ValidationException ex) {
     ApiResponseOutDto<String> response = ApiResponseOutDto.<String>builder()

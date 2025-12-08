@@ -31,8 +31,8 @@ public class OtpController {
         // Get identifier based on channel
         String identifier = validationService.getIdentifier(request);
 
-        // Generate OTP
-        String otp = otpService.generate(identifier);
+        // Generate OTP and send notification (async with circuit breaker)
+        otpService.generate(identifier, request);
 
         ApiResponseOutDto<Map<String, String>> response = ApiResponseOutDto.<Map<String, String>>builder()
                 .status("SUCCESS")
@@ -74,7 +74,7 @@ public class OtpController {
         String identifier = validationService.getIdentifier(request);
 
         // Resend (generates new OTP after cooldown)
-        String otp = otpService.resend(identifier);
+        otpService.resend(identifier, request);
 
         ApiResponseOutDto<Map<String, Object>> response = ApiResponseOutDto.<Map<String, Object>>builder()
                 .status("SUCCESS")
