@@ -25,13 +25,10 @@ public class OtpController {
 
     @PostMapping("/generate")
     public ResponseEntity<ApiResponseOutDto<Map<String, String>>> generate(@RequestBody OtpRequest request) {
-        // Validate and sanitize request
         validationService.validateGenerateRequest(request);
 
-        // Get identifier based on channel
         String identifier = validationService.getIdentifier(request);
 
-        // Generate OTP and send notification (async with circuit breaker)
         otpService.generate(identifier, request);
 
         ApiResponseOutDto<Map<String, String>> response = ApiResponseOutDto.<Map<String, String>>builder()
@@ -49,10 +46,9 @@ public class OtpController {
 
     @PostMapping("/verify")
     public ResponseEntity<ApiResponseOutDto<String>> verify(@RequestBody OtpVerifyRequest request) {
-        // Validate and sanitize request
+
         validationService.validateVerifyRequest(request);
 
-        // Verify OTP
         otpService.verify(request.getIdentifier(), request.getOtp());
 
         ApiResponseOutDto<String> response = ApiResponseOutDto.<String>builder()
@@ -67,13 +63,11 @@ public class OtpController {
 
     @PostMapping("/resend")
     public ResponseEntity<ApiResponseOutDto<Map<String, Object>>> resend(@RequestBody OtpRequest request) {
-        // Validate and sanitize request
+
         validationService.validateGenerateRequest(request);
 
-        // Get identifier based on channel
         String identifier = validationService.getIdentifier(request);
 
-        // Resend (generates new OTP after cooldown)
         otpService.resend(identifier, request);
 
         ApiResponseOutDto<Map<String, Object>> response = ApiResponseOutDto.<Map<String, Object>>builder()

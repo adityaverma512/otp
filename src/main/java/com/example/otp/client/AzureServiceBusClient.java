@@ -44,18 +44,17 @@ public class AzureServiceBusClient {
      */
     private void publishToSimulatedQueue(OtpNotificationDto notification) {
         try {
-            log.info("📨 [Azure Service Bus] Publishing message to queue: {}", queueName);
+            log.info("[Azure Service Bus] Publishing message to queue: {}", queueName);
             log.debug("Message: {}", objectMapper.writeValueAsString(notification));
 
-            log.info("✅ [Azure Service Bus] Message published successfully");
+            log.info("[Azure Service Bus] Message published successfully");
 
-            // Process the message immediately (one attempt only)
             processMessage(notification);
 
         } catch (Exception e) {
-            log.error("❌ [Azure Service Bus] Failed to publish message", e);
-            log.error("   Correlation ID: {}", notification.getCorrelationId());
-            log.error("   Message will NOT be retried - User must request new OTP");
+            log.error(" [Azure Service Bus] Failed to publish message", e);
+            log.error(" Correlation ID: {}", notification.getCorrelationId());
+            log.error(" Message will NOT be retried - User must request new OTP");
         }
     }
 
@@ -67,19 +66,18 @@ public class AzureServiceBusClient {
         String correlationId = notification.getCorrelationId();
 
         try {
-            log.info("🔄 [Message Consumer] Processing message");
+            log.info("[Message Consumer] Processing message");
             log.info("   Correlation ID: {}", correlationId);
 
-            // Call Salesforce (with circuit breaker protection)
             salesforceClient.sendOtp(notification);
 
-            log.info("✅ [Message Consumer] OTP sent successfully");
+            log.info("[Message Consumer] OTP sent successfully");
 
         } catch (Exception e) {
-            log.error("❌ [Message Consumer] Failed to send OTP");
-            log.error("   Correlation ID: {}", correlationId);
-            log.error("   Error: {}", e.getMessage());
-            log.error("   User must request a new OTP");
+            log.error("[Message Consumer] Failed to send OTP");
+            log.error("Correlation ID: {}", correlationId);
+            log.error("Error: {}", e.getMessage());
+            log.error("User must request a new OTP");
         }
     }
 

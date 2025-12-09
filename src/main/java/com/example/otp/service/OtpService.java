@@ -57,10 +57,8 @@ public class OtpService {
         String otp = generateOtp();
         String otpKey = OtpConstants.REDIS_OTP_KEY_PREFIX + identifier;
 
-        // Hash OTP before storing
         String hashedOtp = hashOtp(otp);
 
-        // Store hashed OTP in Redis
         redisTemplate.opsForValue().set(
                 otpKey,
                 hashedOtp,
@@ -68,7 +66,6 @@ public class OtpService {
                 TimeUnit.SECONDS
         );
 
-        // Set resend cooldown timestamp
         String resendKey = OtpConstants.REDIS_RESEND_KEY_PREFIX + identifier;
         long resendAllowedAt = System.currentTimeMillis() +
                 (otpConfig.getResend().getCooldownSeconds() * 1000L);
@@ -83,10 +80,9 @@ public class OtpService {
                 identifier, otpConfig.getExpirySeconds());
         System.out.println(" OTP generated for " + identifier + " → OTP: " + otp);
 
-        // Send OTP notification asynchronously (with circuit breaker protection)
         notificationService.sendOtpNotification(request, identifier, otp);
 
-        return otp; // Return plain OTP (stored hashed in Redis)
+        return otp;
     }
 
     /**
@@ -106,10 +102,8 @@ public class OtpService {
             throw new InvalidOtpException("Invalid OTP for: " + identifier);
         }
 
-        // Delete OTP after successful verification
         redisTemplate.delete(otpKey);
 
-        // Also delete resend cooldown key
         String resendKey = OtpConstants.REDIS_RESEND_KEY_PREFIX + identifier;
         redisTemplate.delete(resendKey);
 
@@ -127,7 +121,6 @@ public class OtpService {
         String resendKey = OtpConstants.REDIS_RESEND_KEY_PREFIX + identifier;
         String resendTimestamp = redisTemplate.opsForValue().get(resendKey);
 
-        // Check if cooldown period is active
         if (resendTimestamp != null) {
             long resendAllowedAt = Long.parseLong(resendTimestamp);
             long currentTime = System.currentTimeMillis();
@@ -141,7 +134,7 @@ public class OtpService {
             }
         }
 
-        // Generate NEW OTP (invalidates old one)
+
         String newOtp = generate(identifier, request);
 
         log.info(" New OTP generated for: {} (old OTP invalidated)", identifier);

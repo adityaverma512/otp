@@ -28,9 +28,9 @@ public class SalesforceClient {
      */
     @CircuitBreaker(name = "salesforceClient", fallbackMethod = "sendOtpFallback")
     public void sendOtp(OtpNotificationDto notification) {
-        log.info("🔵 [Salesforce] Attempting to send OTP");
-        log.info("   Correlation ID: {}", notification.getCorrelationId());
-        log.info("   Identifier: {}", notification.getIdentifier());
+        log.info("[Salesforce] Attempting to send OTP");
+        log.info("Correlation ID: {}", notification.getCorrelationId());
+        log.info("Identifier: {}", notification.getIdentifier());
 
         if (salesforceConfig.getSimulation().getEnabled()) {
             simulateSalesforceCall(notification);
@@ -38,7 +38,7 @@ public class SalesforceClient {
             sendToRealSalesforce(notification);
         }
 
-        log.info("✅ [Salesforce] OTP sent successfully");
+        log.info("[Salesforce] OTP sent successfully");
     }
 
     /**
@@ -46,7 +46,6 @@ public class SalesforceClient {
      * NO RETRY - Just log and throw exception
      */
     private void sendOtpFallback(OtpNotificationDto notification, Exception ex) {
-        // Check if circuit breaker is open
         if (ex instanceof CallNotPermittedException) {
             log.error("🔴 ========================================");
             log.error("🔴 CIRCUIT BREAKER IS OPEN");
@@ -60,9 +59,9 @@ public class SalesforceClient {
         }
 
         // Other failures
-        log.error("❌ [Salesforce] Failed to send OTP");
-        log.error("   Correlation ID: {}", notification.getCorrelationId());
-        log.error("   Error: {}", ex.getMessage());
+        log.error("[Salesforce] Failed to send OTP");
+        log.error("Correlation ID: {}", notification.getCorrelationId());
+        log.error("Error: {}", ex.getMessage());
 
         throw new SalesforceServiceException(
                 "Failed to send OTP notification. Please try again.",
@@ -75,7 +74,6 @@ public class SalesforceClient {
      */
     private void simulateSalesforceCall(OtpNotificationDto notification) {
         try {
-            // Simulate network delay
             int delay = salesforceConfig.getSimulation().getDelayMs();
             log.debug("⏳ [Simulation] Network delay: {}ms", delay);
             Thread.sleep(delay);
@@ -87,14 +85,13 @@ public class SalesforceClient {
                 throw new RuntimeException("Simulated Salesforce failure");
             }
 
-            // Simulate timeout scenario
             if (delay > salesforceConfig.getSimulation().getTimeoutMs()) {
                 log.warn("⚠️ [Simulation] Timeout detected");
                 throw new TimeoutException("Simulated timeout");
             }
 
-            log.info("✅ [Simulation] OTP sent successfully");
-            log.info("   Channel: {} | Identifier: {} | Name: {} {}",
+            log.info("[Simulation] OTP sent successfully");
+            log.info("Channel: {} | Identifier: {} | Name: {} {}",
                     notification.getChannel(),
                     notification.getIdentifier(),
                     notification.getFirstName(),
