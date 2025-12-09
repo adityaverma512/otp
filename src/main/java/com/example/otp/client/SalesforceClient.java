@@ -5,7 +5,7 @@ import com.example.otp.constants.OtpConstants;
 import com.example.otp.exception.SalesforceServiceException;
 import com.example.otp.model.dto.OtpNotificationDto;
 import com.example.otp.model.dto.SalesforceOtpRequest;
-import com.example.otp.service.SalesforceAuthService;
+import com.example.otp.service.SFMCAuthService;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
@@ -23,12 +23,12 @@ import java.util.concurrent.TimeoutException;
 public class SalesforceClient {
 
     private final SalesforceConfig salesforceConfig;
-    private final SalesforceAuthService authService;
+    private final SFMCAuthService authService;
     private final RestTemplate restTemplate;
     private final Random random = new Random();
 
     public SalesforceClient(SalesforceConfig salesforceConfig,
-                            SalesforceAuthService authService,
+                            SFMCAuthService authService,
                             RestTemplate restTemplate) {
         this.salesforceConfig = salesforceConfig;
         this.authService = authService;
@@ -133,7 +133,7 @@ public class SalesforceClient {
             // If unauthorized, invalidate token and retry once
             if (e.getStatusCode() == HttpStatus.UNAUTHORIZED) {
                 log.warn("⚠️ Unauthorized - invalidating token and retrying once");
-                authService.invalidateToken();
+                //authService.invalidateToken();
             }
 
             throw new SalesforceServiceException("Salesforce API call failed", e);

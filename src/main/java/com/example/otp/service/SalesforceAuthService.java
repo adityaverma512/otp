@@ -4,18 +4,14 @@ import com.example.otp.config.SalesforceConfig;
 import com.example.otp.exception.SalesforceServiceException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Instant;
-import java.util.Date;
-import java.util.concurrent.TimeUnit;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -56,29 +52,37 @@ public class SalesforceAuthService {
         if (cachedAccessToken == null || tokenExpiryTime == null) {
             return false;
         }
-
         // Token valid if expires in more than 60 seconds
         return Instant.now().isBefore(tokenExpiryTime.minusSeconds(60));
     }
 
     /**
-     * Request new JWT access token from Salesforce
+     * Request new Access Token using Client Credentials Flow (v2)
+     * Refactored to match the working reference implementation.
      */
     private String requestNewToken() {
         try {
-            String jwt = generateJWT();
-
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            headers.setContentType(MediaType.APPLICATION_JSON);
 
-            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-            body.add("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer");
-            body.add("assertion", jwt);
+            // Build JSON Body equivalent to the working example's SFMCTokenRequest
+            Map<String, String> body = new HashMap<>();
+            body.put("grant_type", "client_credentials");
+            body.put("client_id", salesforceConfig.getAuth().getClientId());
+            body.put("client_secret", salesforceConfig.getAuth().getClientSecret());
+            // Optional: If your setup requires account_id, uncomment below
+            // body.put("account_id", "YOUR_BUSINESS_UNIT_ID");
 
-            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
+            HttpEntity<Map<String, String>> request = new HttpEntity<>(body, headers);
+
+            // Ensure URL ends with /v2/token
+            String authUrl = salesforceConfig.getAuth().getAuthenticationUri();
+            if (!authUrl.endsWith("/v2/token")) {
+                authUrl = authUrl.replaceAll("/+$", "") + "/v2/token";
+            }
 
             ResponseEntity<String> response = restTemplate.postForEntity(
-                    salesforceConfig.getAuth().getAuthenticationUri(),
+                    authUrl,
                     request,
                     String.class
             );
@@ -87,15 +91,18 @@ public class SalesforceAuthService {
                 JsonNode jsonNode = objectMapper.readTree(response.getBody());
                 cachedAccessToken = jsonNode.get("access_token").asText();
 
-                // Set expiry time (subtract buffer for safety)
-                int expirySeconds = salesforceConfig.getAuth().getTokenExpirySeconds();
+                // Get expiry from response or fallback to config
+                int expirySeconds = jsonNode.has("expires_in")
+                        ? jsonNode.get("expires_in").asInt()
+                        : salesforceConfig.getAuth().getTokenExpirySeconds();
+
                 tokenExpiryTime = Instant.now().plusSeconds(expirySeconds);
 
                 log.info("✅ Access token obtained successfully");
                 return cachedAccessToken;
             }
 
-            throw new SalesforceServiceException("Failed to obtain access token");
+            throw new SalesforceServiceException("Failed to obtain access token: " + response.getStatusCode());
 
         } catch (Exception e) {
             log.error("❌ Failed to obtain Salesforce access token", e);
@@ -104,28 +111,7 @@ public class SalesforceAuthService {
     }
 
     /**
-     * Generate JWT for Salesforce authentication
-     */
-    private String generateJWT() {
-        long nowMillis = System.currentTimeMillis();
-        Date now = new Date(nowMillis);
-        Date exp = new Date(nowMillis + TimeUnit.MINUTES.toMillis(5)); // 5 min validity
-
-        return Jwts.builder()
-                .setIssuer(salesforceConfig.getAuth().getClientId())
-                .setSubject(salesforceConfig.getAuth().getClientId())
-                .setAudience(salesforceConfig.getAuth().getAuthenticationUri())
-                .setIssuedAt(now)
-                .setExpiration(exp)
-                .signWith(
-                        SignatureAlgorithm.HS256,
-                        salesforceConfig.getAuth().getJwtSigningSecret().getBytes()
-                )
-                .compact();
-    }
-
-    /**
-     * Invalidate cached token (useful for testing or error recovery)
+     * Invalidate cached token
      */
     public void invalidateToken() {
         log.info("🔄 Invalidating cached access token");
