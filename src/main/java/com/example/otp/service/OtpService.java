@@ -54,11 +54,23 @@ public class OtpService {
      * Generate OTP for identifier and send via notification service
      */
     public String generate(String identifier, OtpRequest request) {
+        return generate(identifier, request, false); // Default: send notification
+    }
+
+    /**
+     * Generate OTP with option to skip notification (for health checks)
+     *
+     * @param identifier - phone or email
+     * @param request - OTP request details
+     * @param skipNotification - if true, only generates OTP in Redis without sending notification
+     */
+    public String generate(String identifier, OtpRequest request, boolean skipNotification) {
         String otp = generateOtp();
         String otpKey = OtpConstants.REDIS_OTP_KEY_PREFIX + identifier;
 
         String hashedOtp = hashOtp(otp);
 
+        // Store OTP in Redis
         redisTemplate.opsForValue().set(
                 otpKey,
                 hashedOtp,
@@ -66,6 +78,7 @@ public class OtpService {
                 TimeUnit.SECONDS
         );
 
+        // Store resend cooldown
         String resendKey = OtpConstants.REDIS_RESEND_KEY_PREFIX + identifier;
         long resendAllowedAt = System.currentTimeMillis() +
                 (otpConfig.getResend().getCooldownSeconds() * 1000L);
@@ -76,11 +89,17 @@ public class OtpService {
                 TimeUnit.SECONDS
         );
 
-        log.info(" OTP generated for identifier: {} (valid for {} seconds)",
+        log.info("📝 OTP generated for identifier: {} (valid for {} seconds)",
                 identifier, otpConfig.getExpirySeconds());
-        System.out.println(" OTP generated for " + identifier + " → OTP: " + otp);
 
-        notificationService.sendOtpNotification(request, identifier, otp);
+        if (skipNotification) {
+            log.info("⚠️ [HEALTH CHECK MODE] Notification skipped");
+            System.out.println("🧪 [TEST] OTP generated for " + identifier + " → OTP: " + otp);
+        } else {
+            System.out.println("✉️ OTP generated for " + identifier + " → OTP: " + otp);
+            // Send notification only if not skipped
+            notificationService.sendOtpNotification(request, identifier, otp);
+        }
 
         return otp;
     }
@@ -102,14 +121,15 @@ public class OtpService {
             throw new InvalidOtpException("Invalid OTP for: " + identifier);
         }
 
+        // Delete OTP after successful verification
         redisTemplate.delete(otpKey);
 
+        // Delete resend cooldown
         String resendKey = OtpConstants.REDIS_RESEND_KEY_PREFIX + identifier;
         redisTemplate.delete(resendKey);
 
-        log.info(" OTP verified and deleted for: {}", identifier);
-        System.out.println(" OTP verified successfully for: " + identifier);
         log.info("✅ OTP verified and deleted for: {}", identifier);
+        System.out.println("✅ OTP verified successfully for: " + identifier);
 
         return true;
     }
@@ -118,6 +138,13 @@ public class OtpService {
      * Resend OTP - Always generates NEW OTP after cooldown
      */
     public String resend(String identifier, OtpRequest request) {
+        return resend(identifier, request, false); // Default: send notification
+    }
+
+    /**
+     * Resend OTP with option to skip notification (for health checks)
+     */
+    public String resend(String identifier, OtpRequest request, boolean skipNotification) {
         String resendKey = OtpConstants.REDIS_RESEND_KEY_PREFIX + identifier;
         String resendTimestamp = redisTemplate.opsForValue().get(resendKey);
 
@@ -134,12 +161,16 @@ public class OtpService {
             }
         }
 
+        // Generate new OTP (with or without notification)
+        String newOtp = generate(identifier, request, skipNotification);
 
-        String newOtp = generate(identifier, request);
-
-        log.info(" New OTP generated for: {} (old OTP invalidated)", identifier);
-        System.out.println(" New OTP generated for " + identifier + " → OTP: " + newOtp);
         log.info("🔄 New OTP generated for: {} (old OTP invalidated)", identifier);
+
+        if (skipNotification) {
+            System.out.println("🧪 [TEST] New OTP generated for " + identifier + " → OTP: " + newOtp);
+        } else {
+            System.out.println("🔄 New OTP generated for " + identifier + " → OTP: " + newOtp);
+        }
 
         return newOtp;
     }
